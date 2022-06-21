@@ -5,3 +5,4 @@ tqdm
 xgboost
 optuna
 pytest
+sklearn
