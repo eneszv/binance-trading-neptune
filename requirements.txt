@@ -4,3 +4,4 @@ python-binance
 tqdm
 xgboost
 optuna
+pytest
