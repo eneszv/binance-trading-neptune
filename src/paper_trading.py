@@ -8,17 +8,27 @@ from xgboost import XGBClassifier
 import talib
 import optuna
 from tqdm import tqdm
+from unittest.mock import Mock
 from config import config
 
 
 class PaperTrader():
     
-    def __init__(self, config):
+    def __init__(self, config, debug=False):
         self.model_config = config['paper_traing_config']
         self.data_config = config['data_config']
+        self.debug = debug
         
     def log_in(self):
         
+        if self.debug:
+            self.client = Mock()
+            self.client.create_order = lambda symbol, side, type, quantity:{
+                "executedQty":1,
+                "cummulativeQuoteQty":np.random.rand()+1
+            }
+            return
+
         self.client = Client(api_key = os.environ.get('BINANCE_TESTNET_API'),
                              api_secret = os.environ.get('BINANCE_TESTNET_SECRET'),
                              tld = 'com',
@@ -50,6 +60,9 @@ class PaperTrader():
     
     def get_df_from_bars(self, start_time):
         
+        if self.debug:
+            return self.return_dummy_dataset(start_time, 1500)
+
         bars = self.client.get_historical_klines(symbol = self.model_config['symbol'],
                                     interval = self.model_config['interval'],
                                     start_str = str(start_time),
@@ -69,6 +82,11 @@ class PaperTrader():
         return df
 
     def get_historical_data(self):
+
+        if self.debug:
+            length = 4500
+            start_time = datetime.utcnow() - timedelta(hours=length)
+            return self.return_dummy_dataset(start_time, length)
 
         df = pd.DataFrame()
 
@@ -113,8 +131,6 @@ class PaperTrader():
 
     def predict_movement(self, df):
 
-        #load model
-        #TODO logic for retraining
         df_res = self.load_res_data()
         model = 0
 
@@ -139,7 +155,6 @@ class PaperTrader():
                 # load data
                 model = self.train_model()
 
-        
 
         pred = model.predict(df[self.data_config['features']][-1:])[0]
 
@@ -202,11 +217,9 @@ class PaperTrader():
 
         # prepare data
         df_his = self.get_historical_data()
-        #df_his.to_csv('../out/debug_his.csv')
         last_date = max(df_his['date']) + timedelta(hours = 1)
         print(last_date)
         df_curr = self.get_df_from_bars(last_date)
-        #df_curr.to_csv('../out/debug_curr.csv')
         df = df_his.append(df_curr)
         df = df.drop_duplicates(subset=['date'])
 
@@ -279,7 +292,6 @@ class PaperTrader():
         )
         
         df_res['cum_ret'] = df_res['hourly_return'].cumsum()
-        #df_res.to_csv('../out/debug_res.csv')
         return df_res['cum_ret'].to_list()[-1]
 
     def objective(self, trial):
@@ -299,6 +311,16 @@ class PaperTrader():
 
         return self.get_score(df_res)
 
+    @staticmethod
+    def return_dummy_dataset(start_time, length):
+        return pd.DataFrame({
+                'date':pd.date_range(start_time, start_time+timedelta(hours=length), freq='H'),
+                'open': np.random.rand(length+1)+1,
+                'high': np.random.rand(length+1)+2,
+                'low': np.random.rand(length+1),
+                'close': np.random.rand(length+1)+1,
+                'volume': np.random.rand(length+1)*100})
+
     
     def execute_trade(self):
         
@@ -311,8 +333,14 @@ class PaperTrader():
         df = self.generate_features(df)
 
         self.predict_movement(df)
+    
+    def test_execute_trade(self):
+        
+        self.log_in()
+        self.load_metadata()
+        start_time = datetime.utcnow()
+    
+        df = self.get_df_from_bars(start_time)
+        df = self.generate_features(df)
 
-if __name__ == '__main__':
-
-    pt = PaperTrader(config)
-    pt.execute_trade()
+        self.predict_movement(df)
