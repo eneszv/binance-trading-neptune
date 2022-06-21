@@ -5,4 +5,3 @@ tqdm
 xgboost
 optuna
 pytest
-TA-Lib
