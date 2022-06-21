@@ -40,4 +40,6 @@ jobs:
               && sudo rm -rf ta-lib/ \
               && pip install ta-lib
       - name: Run test
-        run: pytest src/main.py
+        run: |
+          cd src
+          pytest main.py
