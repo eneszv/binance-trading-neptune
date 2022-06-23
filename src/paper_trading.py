@@ -410,7 +410,7 @@ class PaperTrader():
         df = self.generate_features(df)
 
         self.predict_movement(df)
-        self.neptune_log(self)
+        self.neptune_log()
     
     def test_execute_trade(self):
         
