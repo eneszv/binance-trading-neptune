@@ -3,8 +3,9 @@ import os
 
 config = {
     'paper_traing_config': {
-        'res_file_dir': os.path.join('..', 'out'),
-        'model_dir': os.path.join('..', 'out'),
+        's3_bucket': 'binance-trading-data',
+        's3_res_file_path': 'out',
+        's3_model_path': 'out',
         'interval': '1h',
         'symbol': 'BTCUSDT',
         'quantity': 0.005, 
@@ -15,7 +16,8 @@ config = {
         'retraining_thr': 0.6
     },
     'data_config':{
-        'data_dir': os.path.join('..', 'out', 'BTCUSDT', '1h'),
+        's3_bucket': 'binance-trading-data',
+        's3_data_path': 'out/BTCUSDT/1h',
         'names': ["open time", "open", "high", "low", "close", "volume",
                     "close time", "quote asset volume", "number of trades",
                     "taker buy base asset volume", "taker buy quote asset volume", "date"],

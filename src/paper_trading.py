@@ -1,6 +1,7 @@
 import os
 import json
 from datetime import datetime, timedelta
+import tempfile
 import pandas as pd
 import numpy as np
 from binance.client import Client
@@ -10,6 +11,8 @@ import optuna
 from tqdm import tqdm
 from unittest.mock import Mock
 from config import config
+import boto3
+import joblib
 
 
 class PaperTrader():
@@ -18,7 +21,9 @@ class PaperTrader():
         self.model_config = config['paper_traing_config']
         self.data_config = config['data_config']
         self.debug = debug
-        
+        self.s3_client = boto3.client('s3')
+        self.s3_res = boto3.resource('s3')
+
     def log_in(self):
         
         if self.debug:
@@ -34,29 +39,75 @@ class PaperTrader():
                              tld = 'com',
                              testnet = True)
 
+    def save_metadata(self):
+        
+        try:
+            self.s3_client.put_object(
+                Body=json.dumps(self.metadata),
+                Bucket=self.model_config['s3_bucket'],
+                Key='{}/metadata.json'.format(self.model_config['s3_model_path'])
+            )
+        except:
+            print('Metadata not saved')
+
     def load_metadata(self):
         
         try: 
-            with open(os.path.join(self.model_config['model_dir'], 'metadata.json')) as json_file:
-                self.metadata = json.load(json_file)
+            obj = self.s3_res.Object(
+                self.model_config['s3_bucket'],
+                '{}/metadata.json'.format(self.model_config['s3_model_path']))
+
+            data = obj.get()['Body'].read().decode('utf-8')
+            self.metadata = json.loads(data)
         except:
             print('Metadata not found')
             self.metadata = {}
+
+    def save_res_data(self, df):
+        try:
+            df.to_csv('s3://{}/{}/results.csv'.format(
+                self.model_config['s3_bucket'],
+                self.model_config['s3_res_file_path']), index=False)
+        except:
+            print('Result data not saved')
     
     def load_res_data(self):
         try:
-            df_res = pd.read_csv(os.path.join(self.model_config['model_dir'], 'results.csv'))
+            df_res = pd.read_csv('s3://{}/{}/results.csv'.format(
+                self.model_config['s3_bucket'],
+                self.model_config['s3_res_file_path']))
         except:
             print('Result file not found. Returning empty data frame.')
             df_res = pd.DataFrame()
             
         return df_res
     
-    def save_data(self, df):
+    def save_model(self, clf):
         
-        if not os.path.exists(self.model_config['res_file_dir']):
-            os.makedirs(self.model_config['res_file_dir'])
-        df.to_csv(os.path.join(self.model_configg['res_file_dir'], 'results.csv'), index=False)
+        try:
+            with tempfile.TemporaryFile() as fp:
+                joblib.dump(clf, fp)
+                fp.seek(0)
+                self.s3_client.put_object(
+                    Body=fp.read(),
+                    Bucket=self.model_config['s3_bucket'],
+                    Key='{}/model_xgb.pkl'.format(self.model_config['s3_model_path'])
+                )
+        except Exception as e:
+            print('Model not saved')
+            print(e)
+    
+    def load_model(self):
+        
+        with tempfile.TemporaryFile() as fp:
+            self.s3_client.download_fileobj(
+                Fileobj=fp,
+                Bucket=self.model_config['s3_bucket'],
+                Key='{}/model_xgb.pkl'.format(self.model_config['s3_model_path'])
+            )
+            fp.seek(0)
+            model = joblib.load(fp)
+        return model
     
     def get_df_from_bars(self, start_time):
         
@@ -90,8 +141,9 @@ class PaperTrader():
 
         df = pd.DataFrame()
 
-        for f in os.listdir(self.data_config['data_dir']):
-            temp_dir = os.path.join(self.data_config['data_dir'], f)
+        my_objects = self.s3_res.Bucket(self.data_config['s3_bucket'])
+        for o in my_objects.objects.filter(Prefix=self.data_config['s3_data_path']):
+            temp_dir = 's3://{}/{}'.format(self.data_config['s3_bucket'], o)
             df = df.append(pd.read_csv(temp_dir, names=self.data_config['names']))
         
         df['date'] = pd.to_datetime(df['open time'], unit='ms')
@@ -148,11 +200,9 @@ class PaperTrader():
 
         if model == 0:
             try:
-                model = XGBClassifier()
-                model.load_model(os.path.join(self.model_config['model_dir'], "model_sklearn.json"))
+                model = self.load_model()
             except:
                 print('Model not found. Training new model is started.')
-                # load data
                 model = self.train_model()
 
 
@@ -207,10 +257,8 @@ class PaperTrader():
                                 'price':[price],
                                 'closed_trade_price':[np.nan]}))
 
-        df_res.to_csv(os.path.join(self.model_config['model_dir'], 'results.csv'), index=False)
-
-        with open(os.path.join(self.model_config['model_dir'], 'metadata.json'), 'w') as outfile:
-            json.dump(self.metadata, outfile)
+        self.save_res_data(df_res)
+        self.save_metadata()
 
 
     def train_model(self):
@@ -240,9 +288,8 @@ class PaperTrader():
         clf = XGBClassifier(**best_params,  objective = 'binary:logistic')
         clf.fit(x_tr, y_tr, eval_metric = 'logloss')
 
-        clf.save_model(os.path.join(self.model_config['model_dir'], "model_sklearn.json"))
+        self.save_model(clf)
         
-
         return clf
 
     def optimize_params(self, params, look_back):
@@ -336,6 +383,8 @@ class PaperTrader():
     
     def test_execute_trade(self):
         
+        if not os.path.exists('../tt'):
+            os.makedirs('../tt')
         self.log_in()
         self.load_metadata()
         start_time = datetime.utcnow()
