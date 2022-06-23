@@ -9,3 +9,5 @@ sklearn
 boto3
 s3fs
 joblib
+matplotlib
+neptune-client

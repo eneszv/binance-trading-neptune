@@ -13,6 +13,8 @@ from unittest.mock import Mock
 from config import config
 import boto3
 import joblib
+import neptune.new as neptune
+import matplotlib.pyplot as plt
 
 
 class PaperTrader():
@@ -143,7 +145,7 @@ class PaperTrader():
 
         my_objects = self.s3_res.Bucket(self.data_config['s3_bucket'])
         for o in my_objects.objects.filter(Prefix=self.data_config['s3_data_path']):
-            temp_dir = 's3://{}/{}'.format(self.data_config['s3_bucket'], o)
+            temp_dir = 's3://{}/{}'.format(self.data_config['s3_bucket'], o.key)
             df = df.append(pd.read_csv(temp_dir, names=self.data_config['names']))
         
         df['date'] = pd.to_datetime(df['open time'], unit='ms')
@@ -258,6 +260,8 @@ class PaperTrader():
                                 'closed_trade_price':[np.nan]}))
 
         self.save_res_data(df_res)
+        self.df_res = df_res
+
         self.save_metadata()
 
 
@@ -368,6 +372,32 @@ class PaperTrader():
                 'close': np.random.rand(length+1)+1,
                 'volume': np.random.rand(length+1)*100})
 
+
+    def neptune_log(self):
+        run = neptune.init(
+            project=os.environ.get('NEPTUNE_PROJECT'),
+            api_token=os.environ.get('NEPTUNE_API_TOKEN'),
+        )
+
+
+        dft = self.df_res.copy()
+        dft = dft.dropna()
+        dft['price_change'] = (dft['closed_trade_price'] - dft['price'])/dft['price']
+        dft['price_change_direction'] = dft['price_change'].apply(lambda x: 1 if x>0 else 0)
+        dft['hourly_return'] = dft[['price_change', 'price_change_direction', 'trade']].apply(
+            lambda row: np.abs(row[0]) if row[1] == row[2] else -np.abs(row[0]) , axis=1
+        )
+
+        fig = plt.figure(figsize =(4, 4))
+        dft['cum_ret'] = dft['hourly_return'].cumsum()
+        dft.set_index('date')['cum_ret'].plot()
+
+        run["static-img"].upload(neptune.types.File.as_image(fig))
+        run["interactive-img"].upload(neptune.types.File.as_html(fig))
+        run['data/results'].upload(neptune.types.File.as_html(dft))
+
+        run.stop()
+
     
     def execute_trade(self):
         
@@ -380,6 +410,7 @@ class PaperTrader():
         df = self.generate_features(df)
 
         self.predict_movement(df)
+        self.neptune_log(self)
     
     def test_execute_trade(self):
         
