@@ -23,8 +23,12 @@ class PaperTrader():
         self.model_config = config['paper_traing_config']
         self.data_config = config['data_config']
         self.debug = debug
-        self.s3_client = boto3.client('s3')
-        self.s3_res = boto3.resource('s3')
+        self.s3_client = boto3.client('s3',
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'), 
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
+        self.s3_res = boto3.resource('s3',
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'), 
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
 
     def log_in(self):
         
