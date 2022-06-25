@@ -3,7 +3,7 @@ import os
 
 config = {
     'paper_traing_config': {
-        's3_bucket': 'binance-trading-data',
+        's3_bucket': 'neptune-ts-binance',
         's3_res_file_path': 'out',
         's3_model_path': 'out',
         'interval': '1h',
@@ -16,7 +16,7 @@ config = {
         'retraining_thr': 0.6
     },
     'data_config':{
-        's3_bucket': 'binance-trading-data',
+        's3_bucket': 'neptune-ts-binance',
         's3_data_path': 'out/BTCUSDT/1h',
         'names': ["open time", "open", "high", "low", "close", "volume",
                     "close time", "quote asset volume", "number of trades",
