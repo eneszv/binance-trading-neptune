@@ -7,7 +7,13 @@
       "environmentFiles": null,
       "logConfiguration": null,
       "entryPoint": null,
-      "portMappings": [],
+      "portMappings": [
+        {
+          "hostPort": 0,
+          "protocol": "tcp",
+          "containerPort": 5000
+        }
+      ],
       "command": null,
       "linuxParameters": null,
       "cpu": 0,
@@ -19,8 +25,8 @@
       "workingDirectory": null,
       "secrets": null,
       "dockerSecurityOptions": null,
-      "memory": 128,
-      "memoryReservation": null,
+      "memory": null,
+      "memoryReservation": 128,
       "volumesFrom": [],
       "stopTimeout": null,
       "image": "742816653656.dkr.ecr.us-east-1.amazonaws.com/neptune-repo",
@@ -50,14 +56,20 @@
     "EXTERNAL",
     "EC2"
   ],
-  "taskDefinitionArn": "arn:aws:ecs:us-east-1:742816653656:task-definition/ecs-neptune-definition:1",
-  "family": "ecs-neptune-definition",
+  "taskDefinitionArn": "arn:aws:ecs:us-east-1:742816653656:task-definition/neptune-task-definition:1",
+  "family": "neptune-task-definition",
   "requiresAttributes": [
     {
       "targetId": null,
       "targetType": null,
       "value": null,
       "name": "com.amazonaws.ecs.capability.ecr-auth"
+    },
+    {
+      "targetId": null,
+      "targetType": null,
+      "value": null,
+      "name": "com.amazonaws.ecs.capability.docker-remote-api.1.21"
     }
   ],
   "pidMode": null,
