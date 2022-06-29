@@ -378,14 +378,17 @@ class PaperTrader():
 
 
     def neptune_log(self):
+        
+        dft = self.df_res.copy()
+        dft = dft.dropna()
+        if len(dft) == 0:
+            return
+        
         run = neptune.init(
             project=os.environ.get('NEPTUNE_PROJECT'),
             api_token=os.environ.get('NEPTUNE_API_TOKEN'),
         )
-
-
-        dft = self.df_res.copy()
-        dft = dft.dropna()
+        
         dft['price_change'] = (dft['closed_trade_price'] - dft['price'])/dft['price']
         dft['price_change_direction'] = dft['price_change'].apply(lambda x: 1 if x>0 else 0)
         dft['hourly_return'] = dft[['price_change', 'price_change_direction', 'trade']].apply(
